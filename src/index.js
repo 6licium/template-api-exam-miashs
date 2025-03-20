@@ -1,12 +1,16 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import { submitForReview } from './submission.js'
-import api from './api.js'
+import { getCityInfo, addRecipe, deleteRecipe } from './api.js'
 
 const fastify = Fastify({
   logger: true,
 })
-fastify.register(api)
+
+// Enregistrement manuel des routes
+fastify.get('/cities/:cityId', getCityInfo)
+fastify.post('/cities/:cityId/recipes', addRecipe)
+fastify.delete('/cities/:cityId/recipes/:recipeId', deleteRecipe)
 
 fastify.listen(
   {
