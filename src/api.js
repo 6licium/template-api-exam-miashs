@@ -1,117 +1,105 @@
-import fetch from 'node-fetch';
+import fetch from 'node-fetch'
 
-const API_BASE_URL = 'https://api-ugi2pflmha-ew.a.run.app';
+const API_BASE_URL = 'https://api.example.com' // Remplacez par votre propre API
 
-// Stockage des recettes en mémoire
-const recipesDB = {}; // { cityId: [{ id, content }] }
+let recipesDB = {} // Base de données fictive en mémoire pour les recettes
 
-// Fonction pour récupérer les données d'une API avec gestion d'erreur
-const fetchData = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`API Error: ${response.status}`);
-  return response.json();
-};
+// Route pour récupérer les informations d'une ville
+async function fetchData(url) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`API Error: ${response.status}`)
+  return response.json()
+}
 
-// Route GET /cities/:cityId/infos
-const getCityInfo = async (request, reply) => {
-  const { cityId } = request.params;
+export default async function (fastify, options) {
+  // Récupérer les infos d'une ville
+  fastify.get('/cities/:cityId', async (request, reply) => {
+    const { cityId } = request.params
 
-  try {
-    // Récupérer les infos de la ville via City API
-    const cityData = await fetchData(`${API_BASE_URL}/cities/${cityId}`);
+    try {
+      const cityData = await fetchData(`${API_BASE_URL}/cities/${cityId}`)
+      const weatherData = await fetchData(`${API_BASE_URL}/weather/${cityId}`)
 
-    // Récupérer les prévisions météo via Weather API
-    const weatherData = await fetchData(`${API_BASE_URL}/weather/${cityId}`);
+      const responseData = {
+        coordinates: cityData.coordinates || 'Data not available',
+        population: cityData.population || 'Data not available',
+        knownFor: cityData.knownFor || 'Data not available',
+        weatherPredictions: [
+          { when: 'today', min: weatherData.today?.min, max: weatherData.today?.max },
+          { when: 'tomorrow', min: weatherData.tomorrow?.min, max: weatherData.tomorrow?.max }
+        ],
+        recipes: recipesDB[cityId] || []
+      }
+      reply.send(responseData)
 
-    // Construire la réponse au format attendu
-    const responseData = {
-      coordinates: cityData.coordinates,
-      population: cityData.population,
-      knownFor: cityData.knownFor,
-      weatherPredictions: [
-        { when: 'today', min: weatherData.today.min, max: weatherData.today.max },
-        { when: 'tomorrow', min: weatherData.tomorrow.min, max: weatherData.tomorrow.max }
-      ],
-      recipes: recipesDB[cityId] || []
-    };
-
-    reply.send(responseData);
-
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' });
+    } catch (error) {
+      if (error.message.includes('API Error: 404')) {
+        return reply.status(404).send({ error: 'City not found' })
+      }
+      reply.status(500).send({ error: 'Internal server error', details: error.message })
     }
-    reply.status(500).send({ error: 'Internal server error', details: error.message });
-  }
-};
+  })
 
-// Route POST /cities/:cityId/recipes
-const createRecipe = async (request, reply) => {
-  const { cityId } = request.params;
-  const { content } = request.body;
+  // Ajouter une recette à une ville
+  fastify.post('/cities/:cityId/recipes', async (request, reply) => {
+    const { cityId } = request.params
+    const { content } = request.body
 
-  // Vérifications des erreurs
-  if (!content) return reply.status(400).send({ error: 'Content is required' });
-  if (content.length < 10) return reply.status(400).send({ error: 'Content is too short (min 10 chars)' });
-  if (content.length > 2000) return reply.status(400).send({ error: 'Content is too long (max 2000 chars)' });
+    if (!content) return reply.status(400).send({ error: 'Content is required' })
+    if (content.length < 10) return reply.status(400).send({ error: 'Content is too short (min 10 chars)' })
+    if (content.length > 2000) return reply.status(400).send({ error: 'Content is too long (max 2000 chars)' })
 
-  try {
-    // Vérifier si la ville existe
-    await fetchData(`${API_BASE_URL}/cities/${cityId}`);
+    try {
+      // Vérifier si la ville existe
+      await fetchData(`${API_BASE_URL}/cities/${cityId}`)
 
-    // Stocker la recette
-    const newRecipe = {
-      id: Date.now(), // Génération d'un ID unique
-      content
-    };
+      // Stocker la recette
+      const newRecipe = {
+        id: Date.now(), // Génération d'un ID unique
+        content
+      }
 
-    if (!recipesDB[cityId]) recipesDB[cityId] = [];
-    recipesDB[cityId].push(newRecipe);
+      if (!recipesDB[cityId]) recipesDB[cityId] = []
+      recipesDB[cityId].push(newRecipe)
 
-    reply.status(201).send(newRecipe);
+      reply.status(201).send(newRecipe)
 
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' });
+    } catch (error) {
+      if (error.message.includes('API Error: 404')) {
+        return reply.status(404).send({ error: 'City not found' })
+      }
+      reply.status(500).send({ error: 'Internal server error', details: error.message })
     }
-    reply.status(500).send({ error: 'Internal server error', details: error.message });
-  }
-};
+  })
 
-// Route DELETE /cities/:cityId/recipes/:recipeId
-const deleteRecipe = async (request, reply) => {
-  const { cityId, recipeId } = request.params;
+  // Supprimer une recette d'une ville
+  fastify.delete('/cities/:cityId/recipes/:recipeId', async (request, reply) => {
+    const { cityId, recipeId } = request.params
 
-  try {
-    // Vérifier si la ville existe
-    await fetchData(`${API_BASE_URL}/cities/${cityId}`);
+    try {
+      // Vérifier si la ville existe
+      await fetchData(`${API_BASE_URL}/cities/${cityId}`)
 
-    // Vérifier si la ville contient des recettes
-    if (!recipesDB[cityId] || recipesDB[cityId].length === 0) {
-      return reply.status(404).send({ error: 'No recipes found for this city' });
+      // Vérifier si la ville contient des recettes
+      if (!recipesDB[cityId] || recipesDB[cityId].length === 0) {
+        return reply.status(404).send({ error: 'No recipes found for this city' })
+      }
+
+      // Trouver et supprimer la recette
+      const recipeIndex = recipesDB[cityId].findIndex(r => r.id === parseInt(recipeId))
+      if (recipeIndex === -1) {
+        return reply.status(404).send({ error: 'Recipe not found' })
+      }
+
+      recipesDB[cityId].splice(recipeIndex, 1)
+
+      reply.status(204).send() // No Content
+
+    } catch (error) {
+      if (error.message.includes('API Error: 404')) {
+        return reply.status(404).send({ error: 'City not found' })
+      }
+      reply.status(500).send({ error: 'Internal server error', details: error.message })
     }
-
-    // Trouver et supprimer la recette
-    const recipeIndex = recipesDB[cityId].findIndex(r => r.id === parseInt(recipeId));
-    if (recipeIndex === -1) {
-      return reply.status(404).send({ error: 'Recipe not found' });
-    }
-
-    recipesDB[cityId].splice(recipeIndex, 1);
-
-    reply.status(204).send(); // No Content
-
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' });
-    }
-    reply.status(500).send({ error: 'Internal server error', details: error.message });
-  }
-};
-
-// Export des routes
-export default async function api(fastify, options) {
-  fastify.get('/cities/:cityId/infos', getCityInfo);
-  fastify.post('/cities/:cityId/recipes', createRecipe);
-  fastify.delete('/cities/:cityId/recipes/:recipeId', deleteRecipe);
+  })
 }
