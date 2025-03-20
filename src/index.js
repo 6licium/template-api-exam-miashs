@@ -8,7 +8,7 @@ const fastify = Fastify({
 })
 
 // Enregistrement manuel des routes
-fastify.get('/cities/:cityId', getCityInfo)
+fastify.get('/cities/:cityId/infos', getCityInfo)
 fastify.post('/cities/:cityId/recipes', addRecipe)
 fastify.delete('/cities/:cityId/recipes/:recipeId', deleteRecipe)
 
