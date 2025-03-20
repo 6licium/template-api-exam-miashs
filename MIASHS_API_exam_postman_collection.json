@@ -1,0 +1,109 @@
+{
+	"info": {
+		"_postman_id": "9cd9f4a3-4b43-4314-8e9a-91a96a27ddd0",
+		"name": "MIASHS",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "34134413"
+	},
+	"item": [
+		{
+			"name": "Get city infos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{apiUrl}}/cities/pixelton/infos",
+					"host": [
+						"{{apiUrl}}"
+					],
+					"path": [
+						"cities",
+						"pixelton",
+						"infos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create recipe",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{ \"content\": \"Content of my recipe\" }",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{apiUrl}}/cities/pixelton/recipes",
+					"host": [
+						"{{apiUrl}}"
+					],
+					"path": [
+						"cities",
+						"pixelton",
+						"recipes"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete recipe",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{apiUrl}}/cities/pixelton/recipes/1742327835934",
+					"host": [
+						"{{apiUrl}}"
+					],
+					"path": [
+						"cities",
+						"pixelton",
+						"recipes",
+						"1742327835934"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "apiUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		}
+	]
+}
