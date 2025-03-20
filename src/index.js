@@ -1,10 +1,12 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import { submitForReview } from './submission.js'
+import api from './api.js'
 
 const fastify = Fastify({
   logger: true,
 })
+fastify.register(api)
 
 fastify.listen(
   {
