@@ -1,16 +1,46 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import { submitForReview } from './submission.js'
-import { getCityInfo, addRecipe, deleteRecipe } from './api.js'
+import { deleteCityRecipe, getCityInfo, postCityRecipe } from './func.js'
+import FastifySwagger from "@fastify/swagger";
+import FastifySwaggerUi from "@fastify/swagger-ui";
 
 const fastify = Fastify({
   logger: true,
 })
 
-// Enregistrement manuel des routes
-fastify.get('/cities/:cityId/infos', getCityInfo)
-fastify.post('/cities/:cityId/recipes', addRecipe)
-fastify.delete('/cities/:cityId/recipes/:recipeId', deleteRecipe)
+await fastify.register(FastifySwagger, {
+    openapi: {
+      openapi: "3.0.0",
+      info: {
+        title: "Test swagger",
+        description: "Testing the Fastify swagger API",
+        version: "0.1.0",
+      },
+
+      components: {
+        securitySchemes: {
+          apiKey: {
+            type: "apiKey",
+            name: "apiKey",
+            in: "header",
+          },
+        },
+      },
+      externalDocs: {
+        url: "https://swagger.io",
+        description: "Find more info here",
+      },
+    },
+  });
+  
+  await fastify.register(FastifySwaggerUi, {
+    routePrefix: "/",
+    uiConfig: {
+      docExpansion: "full",
+      deepLinking: false,
+    },
+  });
 
 fastify.listen(
   {
@@ -30,3 +60,22 @@ fastify.listen(
     submitForReview(fastify)
   }
 )
+
+const schema = {
+    type: 'object',
+    required: ['content'],
+    additionalProperties: false,
+    properties: {
+        content: { type: 'string' }
+    }
+}
+
+fastify.get("/cities/:cityId/infos", getCityInfo)
+
+fastify.post("/cities/:cityId/recipes", {
+    schema: {
+      body: schema
+    }
+  }, postCityRecipe)
+
+fastify.delete("/cities/:cityId/recipes/:recipeId", deleteCityRecipe)

@@ -1,134 +1,114 @@
-import fetch from 'node-fetch'
+let nbRecipes = 0
+let recipes = {}
 
-const API_BASE_URL = 'https://api.example.com' // Remplacez par votre propre API
+export async function getCityInfo(req, rep) {
+    try {
+        let cityId = req.params["cityId"]
 
-// Base de données fictive en mémoire pour les recettes
-const recipesDB = {}
+        const responseInsight = await fetch(`https://api-ugi2pflmha-ew.a.run.app/cities/${cityId}/insights?apiKey=${process.env.API_KEY}`);
 
-// Fonction utilitaire pour récupérer des données depuis l'API
-async function fetchData(url) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`API Error: ${response.status}`)
-  return response.json()
-}
-
-// Obtenir les informations d'une ville
-export async function getCityInfo(request, reply) {
-  const { cityId } = request.params
-
-  try {
-    const cityData = await fetchData(`${API_BASE_URL}/cities/${cityId}`)
-    const weatherData = await fetchData(`${API_BASE_URL}/weather/${cityId}`)
-
-    const responseData = {
-      coordinates: cityData.coordinates || 'Data not available',
-      population: cityData.population || 'Data not available',
-      knownFor: cityData.knownFor || 'Data not available',
-      weatherPredictions: [
-        { 
-          when: 'today', 
-          min: weatherData.today?.min !== undefined ? weatherData.today.min : 'Data not available', 
-          max: weatherData.today?.max !== undefined ? weatherData.today.max : 'Data not available' 
-        },
-        { 
-          when: 'tomorrow', 
-          min: weatherData.tomorrow?.min !== undefined ? weatherData.tomorrow.min : 'Data not available', 
-          max: weatherData.tomorrow?.max !== undefined ? weatherData.tomorrow.max : 'Data not available' 
+        if (!responseInsight.ok) {
+            throw new Error(`La ville n'existe pas`);
         }
-      ],
-      recipes: recipesDB[cityId] || []
-    }
-    
-    reply.send(responseData)
+        
+        const insights = await responseInsight.json();
 
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' })
+        const responseMeteo = await fetch(`https://api-ugi2pflmha-ew.a.run.app/weather-predictions?apiKey=${process.env.API_KEY}&cityId=${cityId}`);
+
+        if (!responseMeteo.ok) {
+            throw new Error(`Pas de météo ?`);
+        }
+        
+        const meteo = await responseMeteo.json();
+
+        rep.send({
+            coordinates:[insights.coordinates.latitude, insights.coordinates.longitude],
+            population:insights.population,
+            knownFor:insights.knownFor,
+            weatherPredictions:meteo[0].predictions,
+            recipes:recipes[cityId] ? recipes[cityId] : []
+        })
+
+    } catch (error) {
+        console.error(error);
+        rep.status(500).send({ error: error.message });
     }
-    reply.status(500).send({ error: 'Internal server error', details: error.message })
-  }
+
 }
 
-// Ajouter une recette à une ville
-export async function addRecipe(request, reply) {
-  const { cityId } = request.params
-  const { content } = request.body
 
-  // Validation du contenu
-  if (!content) {
-    return reply.status(400).send({ error: 'Content is required' })
-  }
-  
-  if (typeof content !== 'string') {
-    return reply.status(400).send({ error: 'Content must be a string' })
-  }
-  
-  if (content.length < 10) {
-    return reply.status(400).send({ error: 'Content is too short (min 10 chars)' })
-  }
-  
-  if (content.length > 2000) {
-    return reply.status(400).send({ error: 'Content is too long (max 2000 chars)' })
-  }
 
-  try {
-    // Vérifier si la ville existe
-    await fetchData(`${API_BASE_URL}/cities/${cityId}`)
 
-    // Stocker la recette
-    const newRecipe = {
-      id: Date.now(), // Génération d'un ID unique
-      content: content
-    }
+export async function postCityRecipe(req, rep) {
+    let cityId = req.params["cityId"]
+    
+    try {
+        if (!req.body) {
+            throw new Error("No body");
+        }
 
-    if (!recipesDB[cityId]) {
-      recipesDB[cityId] = []
+        let { content } = req.body
+
+        if (!content) {
+            throw new Error("No content");
+        }
+
+        const responseCity = await fetch(`https://api-ugi2pflmha-ew.a.run.app/cities?apiKey=${process.env.API_KEY}&search=${cityId}`);
+
+        if (responseCity.status == 404) {
+            rep.status(404).send({error:"La ville n'existe pas"});
+            return
+        } 
+
+        if (!Object.keys(recipes).includes(cityId)) {
+            recipes[cityId] = []
+        }
+
+        if (content.length < 10 || content.length > 2000) {
+            rep.status(400).send({ error:"Content too short or too long"});
+            return
+        }
+
+        recipes[cityId].push({id: ++nbRecipes, content:content})
+        rep.status(201).send({id: nbRecipes, content:content})
+
+    } catch (error) {
+        console.error(error);
+        rep.status(400).send({ error: error.message });
     }
     
-    recipesDB[cityId].push(newRecipe)
-
-    // Retourner la recette créée avec un statut 201 (Created)
-    reply.status(201).send(newRecipe)
-
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' })
-    }
-    reply.status(500).send({ error: 'Internal server error', details: error.message })
-  }
 }
 
-// Supprimer une recette d'une ville
-export async function deleteRecipe(request, reply) {
-  const { cityId, recipeId } = request.params
-  const recipeIdInt = parseInt(recipeId, 10) // Conversion en nombre entier
 
-  try {
-    // Vérifier si la ville existe
-    await fetchData(`${API_BASE_URL}/cities/${cityId}`)
+export async function deleteCityRecipe(req, rep) {
+    try {
+        let cityId = req.params["cityId"]
+        let recipeId = req.params["recipeId"]
 
-    // Vérifier si la ville contient des recettes
-    if (!recipesDB[cityId] || recipesDB[cityId].length === 0) {
-      return reply.status(404).send({ error: 'No recipes found for this city' })
+        const responseCity = await fetch(`https://api-ugi2pflmha-ew.a.run.app/cities?apiKey=${process.env.API_KEY}&search=${cityId}`);
+
+        if (responseCity.status == 404) {
+            rep.status(404).send({error:"La ville n'existe pas"});
+            return
+        }
+
+        if (Object.keys(recipes).includes(cityId)) {
+            let len = recipes[cityId].length
+            recipes[cityId] = recipes[cityId].filter((v) => {return v.id != recipeId})
+
+            if (len == recipes[cityId].length) {
+                rep.status(404).send({error:"La recette n'existe pas"});
+                return
+            }
+        } else {
+            rep.status(404).send({error:"La recette n'existe pas"});
+            return
+        }
+
+        rep.status(204).send({})
+    } catch (error) {
+        console.error(error);
+        rep.status(500).send({ error: error.message });
     }
 
-    // Trouver et supprimer la recette
-    const recipeIndex = recipesDB[cityId].findIndex(r => r.id === recipeIdInt)
-    
-    if (recipeIndex === -1) {
-      return reply.status(404).send({ error: 'Recipe not found' })
-    }
-
-    // Supprimer la recette
-    recipesDB[cityId].splice(recipeIndex, 1)
-
-    // Répondre avec un statut 204 (No Content)
-    reply.status(204).send()
-
-  } catch (error) {
-    if (error.message.includes('API Error: 404')) {
-      return reply.status(404).send({ error: 'City not found' })
-    }
-    reply.status(500).send({ error: 'Internal server error', details: error.message })
-  }
 }
